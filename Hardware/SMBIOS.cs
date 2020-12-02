@@ -71,6 +71,7 @@ namespace OpenHardwareMonitor.Hardware {
         byte majorVersion = 0;
         byte minorVersion = 0;
         try {
+          // Get bios raw information
           ManagementObjectCollection collection;
           using (ManagementObjectSearcher searcher = 
             new ManagementObjectSearcher("root\\WMI", 
@@ -93,21 +94,29 @@ namespace OpenHardwareMonitor.Hardware {
           int offset = 0;
           byte type = raw[offset];
           while (offset + 4 < raw.Length && type != 127) {
-  
+            // each iteration finds the structure inforamtion which are seperated by two zero bytes
+
+             // first byte in structure is the type of information
             type = raw[offset];
+            // second byte in structure is the length of the structure header
             int length = raw[offset + 1];
             ushort handle = (ushort)((raw[offset + 2] << 8) | raw[offset + 3]);
   
             if (offset + length > raw.Length)
               break;
+            // data is the structure header not the actual values
             byte[] data = new byte[length];
             Array.Copy(raw, offset, data, 0, length);
+            // moves offset to the start of the structure values
             offset += length;
-  
+
+            // moves over all the zeros after the structure header
             List<string> stringsList = new List<string>();
             if (offset < raw.Length && raw[offset] == 0)
               offset++;
-  
+
+            // Convert bytes to strings seperated by one zero byte, puts them in 'stringsList'
+            // Structure ends at two successive zero bytes
             while (offset < raw.Length && raw[offset] != 0) {
               StringBuilder sb = new StringBuilder();
               while (offset < raw.Length && raw[offset] != 0) {
@@ -132,12 +141,23 @@ namespace OpenHardwareMonitor.Hardware {
               case 0x04: this.processorInformation = new ProcessorInformation(
                   type, handle, data, stringsList.ToArray());
                 structureList.Add(this.processorInformation); break;
+              case 0x07: //CPU Internal
+                //LCachenum = (data[5] ^ 0x80) + 1 //LCacheNum = data[16] - 3 //LCacheNum = (data[16] ^ 0x04) + 1
+                //LCacheSize = data[8] << 8 //LCacheSize = data[10] << 8
+                //LCacheAssociativity = 0
+                //switch (data[18]) {
+                  //case 5: LCacheAssociativity = 4; break;
+                  //case 7: LCacheAssociativity = 8; break;
+                  //case 9: LCacheAssociativity = 12; break;
+                //}
+                break;
               case 0x11: MemoryDevice m = new MemoryDevice(
                   type, handle, data, stringsList.ToArray());
                 memoryDeviceList.Add(m);
                 structureList.Add(m); break;
               default: structureList.Add(new Structure(
                 type, handle, data, stringsList.ToArray())); break;
+                // type 8 = peripherals
             }
           }
         }
@@ -276,6 +296,12 @@ namespace OpenHardwareMonitor.Hardware {
           return 0;
       }
 
+      /// <summary>
+      /// offset is the data index that represents the string index in strings starting at 1
+      /// example: data[0x04] == 2 ; strings[(2)-1] == 'bla'  ,  GetString(0x04) == 'bla'
+      /// </summary>
+      /// <param name="offset">data index</param>
+      /// <returns>string value of strings where index is the offset data value</returns>
       protected string GetString(int offset) {
         if (offset < data.Length && data[offset] > 0 &&
          data[offset] <= strings.Length)

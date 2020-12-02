@@ -1,5 +1,7 @@
 *.user
 *.suo
+Test/
 Bin/
 Obj/
 .vs/
+OpenHardwareMonitor.sln
